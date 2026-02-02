@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>6×6 Sudoku Solver</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .grid-cell {
+            width: 50px;
+            height: 50px;
+            text-align: center;
+            font-size: 20px;
+            font-weight: bold;
+        }
+        .grid-cell:focus {
+            outline: none;
+            background-color: rgba(59, 130, 246, 0.5);
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 min-h-screen">
+    <div class="max-w-6xl mx-auto p-8">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-5xl font-bold text-white mb-2">6×6 Sudoku Solver</h1>
+            <p class="text-gray-300">Upload, Edit, and Solve your Sudoku puzzles</p>
+        </div>
+
+        <!-- Progress Indicator -->
+        <div class="flex justify-center mb-8">
+            <div class="flex items-center space-x-4">
+                <div id="step1" class="flex items-center text-white">
+                    <div class="w-10 h-10 rounded-full flex items-center justify-center bg-blue-500">1</div>
+                    <span class="ml-2 font-medium">Upload</span>
+                </div>
+                <div class="w-16 h-1 bg-gray-600"></div>
+                <div id="step2" class="flex items-center text-gray-400">
+                    <div class="w-10 h-10 rounded-full flex items-center justify-center bg-gray-600">2</div>
+                    <span class="ml-2 font-medium">Preview</span>
+                </div>
+                <div class="w-16 h-1 bg-gray-600"></div>
+                <div id="step3" class="flex items-center text-gray-400">
+                    <div class="w-10 h-10 rounded-full flex items-center justify-center bg-gray-600">3</div>
+                    <span class="ml-2 font-medium">Edit</span>
+                </div>
+                <div class="w-16 h-1 bg-gray-600"></div>
+                <div id="step4" class="flex items-center text-gray-400">
+                    <div class="w-10 h-10 rounded-full flex items-center justify-center bg-gray-600">4</div>
+                    <span class="ml-2 font-medium">Solved</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div id="loading" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-lg p-8 flex flex-col items-center">
+                <div class="loader mb-4"></div>
+                <p class="text-xl font-semibold">Processing...</p>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="bg-white/10 backdrop-blur-lg rounded-2xl p-8 shadow-2xl">
+            <!-- Upload Step -->
+            <div id="uploadStep" class="text-center">
+                <svg class="w-24 h-24 mx-auto mb-6 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                </svg>
+                <h2 class="text-3xl font-bold text-white mb-4">Upload Sudoku Puzzle Image</h2>
+                <p class="text-gray-300 mb-8">Select an image of your 6×6 Sudoku puzzle</p>
+                <label class="cursor-pointer inline-block">
+                    <input type="file" id="imageUpload" accept="image/*" class="hidden">
+                    <div class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-8 rounded-lg transition-all transform hover:scale-105">
+                        Choose Image
+                    </div>
+                </label>
+                <div id="uploadError" class="hidden mt-6 bg-red-500/20 border border-red-500 rounded-lg p-4">
+                    <p class="text-red-200"></p>
+                </div>
+            </div>
+
+            <!-- Preview Step -->
+            <div id="previewStep" class="hidden">
+                <h2 class="text-3xl font-bold text-white mb-6 text-center">Parsed Grid Preview</h2>
+                <div class="grid md:grid-cols-2 gap-8">
+                    <div>
+                        <h3 class="text-xl font-semibold text-white mb-4">Original Image</h3>
+                        <img id="originalImage" class="w-full rounded-lg shadow-lg">
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-semibold text-white mb-4">Detected Grid</h3>
+                        <div class="flex justify-center">
+                            <div id="previewGrid"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex justify-center gap-4 mt-8">
+                    <button onclick="rejectParsedGrid()" class="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded-lg transition-all">
+                        <span>❌</span> Reject & Re-upload
+                    </button>
+                    <button onclick="confirmParsedGrid()" class="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg transition-all">
+                        <span>✓</span> Confirm & Continue
+                    </button>
+                </div>
+            </div>
+
+            <!-- Edit Step -->
+            <div id="editStep" class="hidden">
+                <h2 class="text-3xl font-bold text-white mb-6 text-center">Edit Grid Values</h2>
+                <p class="text-gray-300 text-center mb-6">Click on any cell to modify its value (0-6, where 0 = empty)</p>
+                <div class="flex justify-center mb-8">
+                    <div id="editGrid"></div>
+                </div>
+                <div class="flex justify-center gap-4">
+                    <button onclick="backToPreview()" class="flex items-center gap-2 bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg transition-all">
+                        Back to Preview
+                    </button>
+                    <button onclick="solvePuzzle()" class="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-105">
+                        <span>▶</span> Solve Puzzle
+                    </button>
+                </div>
+            </div>
+
+            <!-- Solved Step -->
+            <div id="solvedStep" class="hidden">
+                <h2 class="text-3xl font-bold text-white mb-6 text-center">✨ Puzzle Solved! ✨</h2>
+                <div class="grid md:grid-cols-2 gap-8 mb-8">
+                    <div>
+                        <h3 class="text-xl font-semibold text-white mb-4">Original Puzzle</h3>
+                        <div class="flex justify-center">
+                            <div id="originalGrid"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-semibold text-white mb-4">Solution Grid</h3>
+                        <div class="flex justify-center">
+                            <div id="solutionGrid"></div>
+                        </div>
+                    </div>
+                </div>
+                <div id="solutionImageContainer" class="mb-8 hidden">
+                    <h3 class="text-xl font-semibold text-white mb-4 text-center">Solution Image</h3>
+                    <div class="flex justify-center">
+                        <img id="solutionImage" class="rounded-lg shadow-lg max-w-md">
+                    </div>
+                </div>
+                <div class="flex justify-center gap-4">
+                    <button onclick="resetAll()" class="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg transition-all">
+                        <span>🔄</span> Solve Another Puzzle
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Instructions -->
+        <div class="mt-8 bg-white/5 backdrop-blur-lg rounded-lg p-6">
+            <h3 class="text-xl font-bold text-white mb-3">How to Use:</h3>
+            <ol class="text-gray-300 space-y-2">
+                <li>1. Make sure the Flask backend is running (python backend_api.py)</li>
+                <li>2. Upload an image of your 6×6 Sudoku puzzle</li>
+                <li>3. Review the automatically parsed grid</li>
+                <li>4. Confirm if correct, or reject to upload a new image</li>
+                <li>5. Edit any incorrectly detected values if needed</li>
+                <li>6. Click "Solve Puzzle" to see the solution</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:5000/api';
+        let currentStep = 'upload';
+        let uploadedImage = null;
+        let parsedGrid = Array(6).fill().map(() => Array(6).fill(0));
+        let solvedGrid = null;
+        let normalizedImage = null;
+
+        // Initialize
+        document.getElementById('imageUpload').addEventListener('change', handleImageUpload);
+
+        function showLoading() {
+            document.getElementById('loading').classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').classList.add('hidden');
+        }
+
+        function showStep(step) {
+            const steps = ['upload', 'preview', 'edit', 'solved'];
+            steps.forEach(s => {
+                document.getElementById(`${s}Step`).classList.add('hidden');
+            });
+            document.getElementById(`${step}Step`).classList.remove('hidden');
+            currentStep = step;
+            updateProgressIndicator();
+        }
+
+        function updateProgressIndicator() {
+            const stepMap = { upload: 1, preview: 2, edit: 3, solved: 4 };
+            const currentStepNum = stepMap[currentStep];
+            
+            for (let i = 1; i <= 4; i++) {
+                const stepElement = document.getElementById(`step${i}`);
+                const circle = stepElement.querySelector('div');
+                
+                if (i <= currentStepNum) {
+                    stepElement.classList.remove('text-gray-400');
+                    stepElement.classList.add('text-white');
+                    circle.classList.remove('bg-gray-600');
+                    circle.classList.add(i === currentStepNum && currentStep === 'solved' ? 'bg-green-500' : 'bg-blue-500');
+                } else {
+                    stepElement.classList.remove('text-white');
+                    stepElement.classList.add('text-gray-400');
+                    circle.classList.remove('bg-blue-500', 'bg-green-500');
+                    circle.classList.add('bg-gray-600');
+                }
+            }
+        }
+
+        async function handleImageUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                uploadedImage = event.target.result;
+                await parseImage(uploadedImage);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function parseImage(imageData) {
+            showLoading();
+            try {
+                const response = await fetch(`${API_BASE_URL}/parse-image`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: imageData })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    parsedGrid = data.grid;
+                    normalizedImage = data.normalized_image;
+                    
+                    document.getElementById('originalImage').src = uploadedImage;
+                    renderGrid('previewGrid', parsedGrid, false);
+                    showStep('preview');
+                } else {
+                    showError(data.error || 'Failed to parse image');
+                }
+            } catch (err) {
+                showError('Failed to connect to backend. Make sure Flask server is running on port 5000.');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function renderGrid(containerId, grid, editable) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            
+            const gridDiv = document.createElement('div');
+            gridDiv.className = 'inline-block bg-gray-900 p-2 rounded-lg shadow-2xl';
+            
+            for (let i = 0; i < 6; i++) {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'flex';
+                
+                for (let j = 0; j < 6; j++) {
+                    const isTopBorder = i % 2 === 0;
+                    const isLeftBorder = j % 3 === 0;
+                    
+                    const cellDiv = document.createElement('div');
+                    cellDiv.className = `
+                        w-12 h-12 flex items-center justify-center
+                        ${isTopBorder ? 'border-t-2' : 'border-t'}
+                        ${isLeftBorder ? 'border-l-2' : 'border-l'}
+                        ${i === 5 ? 'border-b-2' : ''}
+                        ${j === 5 ? 'border-r-2' : ''}
+                        border-gray-600
+                        ${grid[i][j] === 0 ? 'bg-gray-800' : 'bg-gray-700'}
+                    `;
+                    
+                    if (editable) {
+                        const input = document.createElement('input');
+                        input.type = 'text';
+                        input.maxLength = 1;
+                        input.value = grid[i][j] === 0 ? '' : grid[i][j];
+                        input.className = 'grid-cell bg-transparent text-white';
+                        input.onchange = (e) => handleCellEdit(i, j, e.target.value);
+                        cellDiv.appendChild(input);
+                    } else {
+                        const span = document.createElement('span');
+                        span.className = `text-xl font-bold ${grid[i][j] === 0 ? 'text-gray-500' : 'text-white'}`;
+                        span.textContent = grid[i][j] === 0 ? '' : grid[i][j];
+                        cellDiv.appendChild(span);
+                    }
+                    
+                    rowDiv.appendChild(cellDiv);
+                }
+                
+                gridDiv.appendChild(rowDiv);
+            }
+            
+            container.appendChild(gridDiv);
+        }
+
+        function handleCellEdit(row, col, value) {
+            const numValue = parseInt(value) || 0;
+            if (numValue >= 0 && numValue <= 6) {
+                parsedGrid[row][col] = numValue;
+            }
+        }
+
+        function confirmParsedGrid() {
+            renderGrid('editGrid', parsedGrid, true);
+            showStep('edit');
+        }
+
+        function rejectParsedGrid() {
+            parsedGrid = Array(6).fill().map(() => Array(6).fill(0));
+            uploadedImage = null;
+            normalizedImage = null;
+            document.getElementById('imageUpload').value = '';
+            showStep('upload');
+        }
+
+        function backToPreview() {
+            renderGrid('previewGrid', parsedGrid, false);
+            showStep('preview');
+        }
+
+        async function solvePuzzle() {
+            showLoading();
+            try {
+                const solveResponse = await fetch(`${API_BASE_URL}/solve`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ grid: parsedGrid })
+                });
+
+                const solveData = await solveResponse.json();
+
+                if (solveData.success) {
+                    solvedGrid = solveData.solution;
+                    
+                    const imageResponse = await fetch(`${API_BASE_URL}/generate-solution-image`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            solution: solvedGrid,
+                            normalized_image: normalizedImage
+                        })
+                    });
+
+                    const imageData = await imageResponse.json();
+
+                    if (imageData.success) {
+                        renderGrid('originalGrid', parsedGrid, false);
+                        renderGrid('solutionGrid', solvedGrid, false);
+                        
+                        document.getElementById('solutionImage').src = imageData.solution_image;
+                        document.getElementById('solutionImageContainer').classList.remove('hidden');
+                        
+                        showStep('solved');
+                    } else {
+                        alert('Failed to generate solution image');
+                    }
+                } else {
+                    alert('No solution found for this puzzle!');
+                }
+            } catch (err) {
+                alert('Failed to connect to backend');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function resetAll() {
+            parsedGrid = Array(6).fill().map(() => Array(6).fill(0));
+            solvedGrid = null;
+            uploadedImage = null;
+            normalizedImage = null;
+            document.getElementById('imageUpload').value = '';
+            document.getElementById('solutionImageContainer').classList.add('hidden');
+            showStep('upload');
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('uploadError');
+            errorDiv.querySelector('p').textContent = message;
+            errorDiv.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
